@@ -8,6 +8,6 @@ venv/
 *.egg-info/
 dist/
 build/
-image_index.faiss
+*.faiss
 temp_*
 .DS_Store" > .gitignore
