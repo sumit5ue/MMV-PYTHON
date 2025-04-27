@@ -24,4 +24,14 @@ This project uses FastAPI, DINO, FAISS, and MongoDB to perform image similarity 
 - **POST /embed**: Embed an image and store its features.
 - **POST /similar**: Find similar images based on a query image.
   " > README.md
+
 # mmv-python
+
+# To run
+
+1. create virtual env
+   -m venv venv  
+   source venv/bin/activate
+2. run uvicorn
+   uvicorn image_similarity.main:app --reload --host 0.0.0.0 --port 8000
+   <!-- in production do not use reload -->
