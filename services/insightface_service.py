@@ -1,0 +1,225 @@
+# services/insightface_service.py
+
+import numpy as np
+import os
+import traceback
+import uuid
+import cv2
+from PIL import Image
+from config import get_embeddings_dir, get_metadata_path, get_photos_dir, get_faces_dir
+from utils.jsonl_utils import load_jsonl, save_jsonl
+from utils.error_utils import log_error
+from insightface.app import FaceAnalysis
+from insightface.model_zoo import get_model
+
+
+# Step 1: Load face detection + embeddings (buffalo_l)
+face_app = FaceAnalysis(name="buffalo_l", providers=["CPUExecutionProvider"])
+face_app.prepare(ctx_id=0)
+
+from PIL import Image, ExifTags
+
+def load_image_with_exif_rotation(path):
+    image = Image.open(path)
+
+    try:
+        exif = image._getexif()
+        if exif is not None:
+            orientation_key = next(
+                (k for k, v in ExifTags.TAGS.items() if v == "Orientation"), None
+            )
+            if orientation_key and orientation_key in exif:
+                orientation = exif[orientation_key]
+                if orientation == 3:
+                    image = image.rotate(180, expand=True)
+                elif orientation == 6:
+                    image = image.rotate(270, expand=True)
+                elif orientation == 8:
+                    image = image.rotate(90, expand=True)
+    except Exception as e:
+        print(f"No EXIF rotation needed or error ignored: {e}")
+
+    return np.array(image)
+
+def classify_pose(yaw, pitch, roll):
+    # Handle extreme tilt first
+    if abs(roll) > 25:
+        return "tilted"
+    
+    # Handle frontal
+    if abs(yaw) < 15 and abs(pitch) < 15:
+        return "frontal"
+    
+    # Handle left turns
+    if yaw < -45:
+        return "fullProfileLeft"
+    elif yaw < -30:
+        return "profileLeft"
+    elif yaw < -15:
+        return "slightLeft"
+    
+    # Handle right turns
+    if yaw > 45:
+        return "fullProfileRight"
+    elif yaw > 30:
+        return "profileRight"
+    elif yaw > 15:
+        return "slightRight"
+    
+    # If none of the above, call it angled
+    return "angled"
+
+def detect_and_embed_faces_for_photo(photo_path: str, partner: str, photo_id: str):
+    print("photo_path is", photo_path)
+    try:
+        image = load_image_with_exif_rotation(photo_path)
+        print(f"📷 Image shape: {image.shape}")
+
+        if image is None:
+            raise Exception(f"Failed to load image {photo_path}")
+
+        faces = face_app.get(image)
+        print(f"Number of faces detected: {len(faces)}")
+        faces_dir = get_faces_dir(partner)
+        os.makedirs(faces_dir, exist_ok=True)
+
+        face_embeddings = []
+        faces_metadata = []
+        for i, face in enumerate(faces):
+            print(f"🖼 Face {i}: bbox = {face.bbox.tolist()}")
+            
+            # Extract yaw, pitch, roll
+            yaw = float(face.pose[0])
+            pitch = float(face.pose[1])
+            roll = float(face.pose[2])
+            pose = classify_pose(yaw, pitch, roll)
+
+            x1, y1, x2, y2 = face.bbox.astype(int)
+            x1, y1 = max(0, x1), max(0, y1)
+            x2, y2 = min(image.shape[1], x2), min(image.shape[0], y2)
+            print(f"Adjusted bbox for face {i}: x1={x1}, y1={y1}, x2={x2}, y2={y2}")
+
+            try:
+                crop_img = image[y1:y2, x1:x2]
+                if crop_img is None or crop_img.size == 0:
+                    print(f"⚠️ Empty crop for face {i}")
+                    continue
+
+                print(f"✅ Crop {i}: {crop_img.shape}")
+                face_id = str(uuid.uuid4())
+                crop_path = os.path.join(faces_dir, f"{photo_id}_{i}.jpg")
+                cv2.imwrite(crop_path, cv2.cvtColor(crop_img, cv2.COLOR_RGB2BGR))
+
+                embedding = face.normed_embedding
+                if embedding is None or len(embedding) == 0:
+                    print(f"⚠️ No embedding for face {i}")
+                    continue
+
+                embedding = embedding / np.linalg.norm(embedding)
+
+                face_embeddings.append(embedding)
+
+                faces_metadata.append({
+                    "faceId": face_id,
+                    "photoId": photo_id,
+                    "bbox": [int(x1), int(y1), int(x2), int(y2)],
+                    "cropPath": crop_path,
+                    "sourceImagePath": photo_path,
+                    "gender": int(face.gender),
+                    "age": int(face.age),
+                    "detScore": float(face.det_score),
+                    "yaw": yaw,
+                    "pitch": pitch,
+                    "roll": roll,
+                    "pose": pose
+                })
+
+            except Exception as e:
+                print(f"Error during cropping for face {i}: {str(e)}")
+                continue
+
+        print("faces_metadata", faces_metadata)
+
+        embeddings_dir = get_embeddings_dir(partner)
+        insightface_npy_path = os.path.join(embeddings_dir, f"{partner}_insightface.npy")
+        os.makedirs(embeddings_dir, exist_ok=True)
+
+        if os.path.exists(insightface_npy_path):
+            existing = np.load(insightface_npy_path)
+            combined = np.vstack([existing, np.array(face_embeddings, dtype="float32")])
+        else:
+            combined = np.array(face_embeddings, dtype="float32")
+
+        np.save(insightface_npy_path, combined)
+
+        faces_metadata_path = os.path.join(faces_dir, f"{partner}_faces_metadata.jsonl")
+        print(f"✅ Saved {len(faces_metadata)} new faces into {faces_metadata_path}")
+
+        if os.path.exists(faces_metadata_path):
+            existing_faces = load_jsonl(faces_metadata_path)
+            existing_faces.extend(faces_metadata)
+            save_jsonl(existing_faces, faces_metadata_path)
+        else:
+            save_jsonl(faces_metadata, faces_metadata_path)
+
+        metadata_path = get_metadata_path(partner)
+        metadata = load_jsonl(metadata_path)
+        for entry in metadata:
+            if entry["id"] == photo_id:
+                entry["faceCount"] = len(faces)
+                break
+        save_jsonl(metadata, metadata_path)
+
+    except Exception as e:
+        log_error(
+            photoId=photo_id,
+            faceId=None,
+            step="insightface",
+            errorMessage=str(e),
+            traceback=traceback.format_exc(),
+            modelType="insightface",
+            path=photo_path,
+            partner=partner
+        )
+
+def process_faces_folder(partner: str):
+    photos_dir = get_photos_dir(partner)
+    metadata_path = get_metadata_path(partner)
+
+    if not os.path.exists(photos_dir):
+        raise Exception(f"No photos found at {photos_dir}")
+
+    if not os.path.exists(metadata_path):
+        raise Exception(f"Metadata file {metadata_path} not found. Run clip embedding first to generate metadata.")
+
+    photo_files = [f for f in os.listdir(photos_dir) if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
+
+    metadata = load_jsonl(metadata_path)
+    id_to_metadata = {item['id']: item for item in metadata}
+
+    processed_count = 0
+    skipped_count = 0
+
+    for idx, file in enumerate(photo_files):
+        full_path = os.path.join(photos_dir, file)
+        photo_id = os.path.splitext(file)[0]
+
+        meta = id_to_metadata.get(photo_id)
+        if not meta:
+            continue
+        if meta.get("faceCount") is not None:
+            skipped_count += 1
+            continue
+        
+        print("calling detet")
+        detect_and_embed_faces_for_photo(full_path, partner, photo_id)
+        processed_count += 1
+
+        if (processed_count + skipped_count) % 10 == 0:
+            print(f"Processed {processed_count}, skipped {skipped_count} out of {len(photo_files)} photos...")
+
+    return {
+        "processed": processed_count,
+        "skipped": skipped_count,
+        "total": len(photo_files)
+    }

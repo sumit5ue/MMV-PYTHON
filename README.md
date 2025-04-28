@@ -1,37 +1,179 @@
-echo "# Image Similarity Project
+# MMV-PYTHON: Setup Guide for M1 Mac (Apple Silicon)
 
-This project uses FastAPI, DINO, FAISS, and MongoDB to perform image similarity search.
+This guide will help you set up your environment cleanly for running FastAPI server, CLIP/DINO/InsightFace embeddings, and clustering.
 
-## Setup
+---
 
-1. Create and activate a virtual environment:
-   \`\`\`bash
-   python3 -m venv venv
-   source venv/bin/activate
-   \`\`\`
-2. Install dependencies:
-   \`\`\`bash
-   pip install -r requirements.txt
-   \`\`\`
-3. Update the MongoDB URI in \`image_similarity/models.py\`.
-4. Run the server:
-   \`\`\`bash
-   uvicorn image_similarity.main:app --host 0.0.0.0 --port 8000
-   \`\`\`
+## 1. Install Homebrew (if not already installed)
 
-## Endpoints
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
 
-- **POST /embed**: Embed an image and store its features.
-- **POST /similar**: Find similar images based on a query image.
-  " > README.md
+---
 
-# mmv-python
+## 2. Install Miniforge (Lightweight Conda for M1)
 
-# To run
+```bash
+brew install miniforge
+```
 
-1. create virtual env
-   -m venv venv  
-   source venv/bin/activate
-2. run uvicorn
-   uvicorn image_similarity.main:app --reload --host 0.0.0.0 --port 8000
-   <!-- in production do not use reload -->
+---
+
+## 3. Create Conda Environment
+
+```bash
+conda create -n mmv-python python=3.11
+```
+
+Activate the environment:
+
+```bash
+conda activate mmv-python
+```
+
+---
+
+## 4. Install Packages
+
+### 4.1 Install via Conda (precompiled)
+
+```bash
+conda install onnx onnxruntime opencv scikit-learn
+```
+
+### 4.2 Install via Pip (Python packages)
+
+```bash
+pip install insightface
+pip install fastapi uvicorn torch torchvision Pillow
+pip install git+https://github.com/openai/CLIP.git
+```
+
+✅ This separates heavy libraries (conda) and fast Python libraries (pip) cleanly.
+
+---
+
+## 5. Verify Installation
+
+Check Python version:
+
+```bash
+python --version
+```
+
+It should show:
+
+```plaintext
+Python 3.11.x
+```
+
+List installed packages:
+
+```bash
+pip list
+```
+
+You should see:
+
+- onnx
+- onnxruntime
+- insightface
+- opencv
+- scikit-learn
+- torch
+- torchvision
+- fastapi
+- uvicorn
+- Pillow
+- clip (installed from GitHub)
+
+---
+
+## 6. Start FastAPI Server
+
+```bash
+uvicorn main:app --reload
+```
+
+Access APIs like:
+
+- `/clip/process-folder/`
+- `/dino/process-folder/`
+- `/faces/process-folder/`
+
+✅ Server will hot-reload on changes.
+
+---
+
+## 7. Project Structure
+
+```plaintext
+MMV-PYTHON/
+├── main.py
+├── services/
+│   ├── clip_service.py
+│   ├── dino_service.py
+│   ├── insightface_service.py
+├── schemas/
+│   ├── processing.py
+├── utils/
+│   ├── jsonl_utils.py
+│   ├── error_utils.py
+├── config.py
+└── README.md
+```
+
+---
+
+## 8. Troubleshooting
+
+- Always run `conda activate mmv-python` before running uvicorn.
+- Confirm your Python path inside the environment:
+  ```bash
+  which python
+  ```
+  It should point to `/miniforge3/envs/mmv-python/bin/python`.
+- If you see `ModuleNotFoundError`, check `pip list` to ensure required packages are installed.
+- Restart Terminal and `conda activate mmv-python` if environment seems inactive.
+- Deactivate any old venvs:
+  ```bash
+  deactivate
+  ```
+- Ensure uvicorn is run **inside** the correct conda environment.
+
+---
+
+# Summary: Commands At A Glance
+
+```bash
+brew install miniforge
+conda create -n mmv-python python=3.11
+conda activate mmv-python
+conda install onnx onnxruntime opencv scikit-learn
+pip install insightface
+pip install fastapi uvicorn torch torchvision Pillow
+pip install git+https://github.com/openai/CLIP.git
+uvicorn main:app --reload
+```
+
+✅ 10 minutes and you're ready to run a production-grade ML/AI pipeline on M1 Mac!
+
+---
+
+# ✅ You're now ready to:
+
+- Embed photos (CLIP, DINO)
+- Detect faces + expressions (InsightFace)
+- Build clustering and search pipeline
+- Serve everything via FastAPI
+
+---
+
+If you face any issues, remember to always:
+
+- Check if conda environment is activated.
+- Check installed packages.
+- Restart terminal if needed after setting up Miniforge.
+
+Ready to 🚀!
