@@ -1,6 +1,6 @@
 import numpy as np
 
-path = "/Users/sumit/Documents/ai_analysis/67c507b9fb7ebb148255e4af/embeddings/67c507b9fb7ebb148255e4af_insightface.npy"
+path = "/Users/sumit/Documents/ai_analysis/67c5078cfb7ebb148255e19e/embeddings/67c5078cfb7ebb148255e19e_clip.npy"
 
 arr = np.load(path)
 

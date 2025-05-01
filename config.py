@@ -20,7 +20,7 @@ def get_metadata_path(partner: str) -> str:
     return os.path.join(get_partner_dir(partner), "metadata.jsonl")
 
 def get_faces_metadata_path(partner: str) -> str:
-    return os.path.join(get_partner_dir(partner), "faces_metadata.jsonl")
+    return os.path.join(get_partner_dir(partner), "faces", f"{partner}_faces_metadata.jsonl")
 
 def get_errors_path(partner: str) -> str:
     return os.path.join(get_partner_dir(partner), "errors.jsonl")
