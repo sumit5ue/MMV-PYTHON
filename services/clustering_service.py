@@ -469,3 +469,11 @@ def build_clusters_clip_dino(labels, metadata, probabilities, model: str, partne
         logger.error(f"Failed to save cluster response to {json_path}: {str(e)}")
 
     return response
+
+
+
+def run_hdbscan(embeddings, min_cluster_size=2, metric="euclidean"):
+    clusterer = hdbscan.HDBSCAN(min_cluster_size=min_cluster_size, metric=metric, prediction_data=True)
+    labels = clusterer.fit_predict(embeddings)
+    strength = clusterer.probabilities_  # confidence per point
+    return labels, strength

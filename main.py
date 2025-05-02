@@ -13,6 +13,7 @@ from pathlib import Path
 from schemas.processing import PartnerRequest, PartnerModelRequest, ClusterRequest
 from fastapi.responses import FileResponse
 from routes.photos import router as photos_router
+from routes.faces_clusters import router as faces_cluster_router
 
 
 app = FastAPI()
@@ -24,6 +25,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(photos_router)
+app.include_router(faces_cluster_router)
 
 BASE_DIR = "/Users/sumit/Documents/ai_analysis"
 

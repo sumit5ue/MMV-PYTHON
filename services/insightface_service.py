@@ -11,6 +11,7 @@ from utils.jsonl_utils import load_jsonl, save_jsonl
 from utils.error_utils import log_error
 from insightface.app import FaceAnalysis
 from insightface.model_zoo import get_model
+from db.sqlite_faces import save_faces_to_db
 
 
 # Step 1: Load face detection + embeddings (buffalo_l)
@@ -18,6 +19,7 @@ face_app = FaceAnalysis(name="buffalo_l", providers=["CPUExecutionProvider"])
 face_app.prepare(ctx_id=0)
 
 from PIL import Image, ExifTags
+
 
 def load_image_with_exif_rotation(path):
     image = Image.open(path)
@@ -69,24 +71,25 @@ def classify_pose(yaw, pitch, roll):
     # If none of the above, call it angled
     return "angled"
 
-def detect_and_embed_faces_for_photo(photo_path: str, partner: str, photo_id: str, global_vector_id: int):
-    print("photo_path is", photo_path)
+def detect_and_embed_faces_for_photo(photo_path: str, partner: str, photo_id: str, global_vector_id: int, override_image: np.ndarray = None):
+# def detect_and_embed_faces_for_photo(photo_path: str, partner: str, photo_id: str, global_vector_id: int):
+
     try:
-        image = load_image_with_exif_rotation(photo_path)
-        print(f"📷 Image shape: {image.shape}")
+        # image = load_image_with_exif_rotation(photo_path)
+        image = override_image if override_image is not None else load_image_with_exif_rotation(photo_path)
+
+
 
         if image is None:
             raise Exception(f"Failed to load image {photo_path}")
 
         faces = face_app.get(image)
-        print(f"Number of faces detected: {len(faces)}")
         faces_dir = get_faces_dir(partner)
         os.makedirs(faces_dir, exist_ok=True)
 
         face_embeddings = []
         faces_metadata = []
         for i, face in enumerate(faces):
-            print(f"🖼 Face {i}: bbox = {face.bbox.tolist()}")
 
             # Extract yaw, pitch, roll
             yaw = float(face.pose[0])
@@ -97,18 +100,16 @@ def detect_and_embed_faces_for_photo(photo_path: str, partner: str, photo_id: st
             x1, y1, x2, y2 = face.bbox.astype(int)
             x1, y1 = max(0, x1), max(0, y1)
             x2, y2 = min(image.shape[1], x2), min(image.shape[0], y2)
-            print(f"Adjusted bbox for face {i}: x1={x1}, y1={y1}, x2={x2}, y2={y2}")
 
             try:
-                crop_img = image[y1:y2, x1:x2]
-                if crop_img is None or crop_img.size == 0:
-                    print(f"⚠️ Empty crop for face {i}")
-                    continue
+                # crop_img = image[y1:y2, x1:x2]
+                # if crop_img is None or crop_img.size == 0:
+                #     print(f"⚠️ Empty crop for face {i}")
+                #     continue
 
-                print(f"✅ Crop {i}: {crop_img.shape}")
                 face_id = str(uuid.uuid4())
-                crop_path = os.path.join(faces_dir, f"{photo_id}_{i}.jpg")
-                cv2.imwrite(crop_path, cv2.cvtColor(crop_img, cv2.COLOR_RGB2BGR))
+                # crop_path = os.path.join(faces_dir, f"{photo_id}_{i}.jpg")
+                # cv2.imwrite(crop_path, cv2.cvtColor(crop_img, cv2.COLOR_RGB2BGR))
 
                 embedding = face.normed_embedding
                 if embedding is None or len(embedding) == 0:
@@ -123,8 +124,8 @@ def detect_and_embed_faces_for_photo(photo_path: str, partner: str, photo_id: st
                     "faceId": face_id,
                     "photoId": photo_id,
                     "bbox": [int(x1), int(y1), int(x2), int(y2)],
-                    "cropPath": crop_path,
-                    "sourceImagePath": photo_path,
+                    # "cropPath": crop_path,
+                    # "sourceImagePath": photo_path,
                     "gender": int(face.gender),
                     "age": int(face.age),
                     "detScore": float(face.det_score),
@@ -132,7 +133,8 @@ def detect_and_embed_faces_for_photo(photo_path: str, partner: str, photo_id: st
                     "pitch": pitch,
                     "roll": roll,
                     "pose": pose,
-                    "vectorId": global_vector_id  # ✅ GLOBAL
+                    "vectorId": global_vector_id,  # ✅ GLOBAL
+                    "embedding":embedding
                 })
 
                 global_vector_id += 1  # ✅ Increment after each face
@@ -141,39 +143,33 @@ def detect_and_embed_faces_for_photo(photo_path: str, partner: str, photo_id: st
                 print(f"Error during cropping for face {i}: {str(e)}")
                 continue
 
-        print("faces_metadata", faces_metadata)
 
-        embeddings_dir = get_embeddings_dir(partner)
-        insightface_npy_path = os.path.join(embeddings_dir, f"{partner}_insightface.npy")
-        os.makedirs(embeddings_dir, exist_ok=True)
+        # embeddings_dir = get_embeddings_dir(partner)
+        # insightface_npy_path = os.path.join(embeddings_dir, f"{partner}_insightface.npy")
+        # os.makedirs(embeddings_dir, exist_ok=True)
 
-        if os.path.exists(insightface_npy_path):
-            existing = np.load(insightface_npy_path)
-            combined = np.vstack([existing, np.array(face_embeddings, dtype="float32")])
-        else:
-            combined = np.array(face_embeddings, dtype="float32")
+        # if os.path.exists(insightface_npy_path):
+        #     existing = np.load(insightface_npy_path)
+        #     combined = np.vstack([existing, np.array(face_embeddings, dtype="float32")])
+        # else:
+        #     combined = np.array(face_embeddings, dtype="float32")
 
-        np.save(insightface_npy_path, combined)
+        # for i, face in enumerate(faces_metadata):
+        #     face["embedding"] = face_embeddings[i]
+        #     face["partner"] = partner
 
-        faces_metadata_path = os.path.join(faces_dir, f"{partner}_faces_metadata.jsonl")
-        print(f"✅ Saved {len(faces_metadata)} new faces into {faces_metadata_path}")
+        # # Save to SQLite
+        # save_faces_to_db(faces_metadata)
+       
+        # metadata_path = get_metadata_path(partner)
+        # metadata = load_jsonl(metadata_path)
+        # for entry in metadata:
+        #     if entry["id"] == photo_id:
+        #         entry["faceCount"] = len(faces)
+        #         break
+        # # save_jsonl(metadata, metadata_path)
 
-        if os.path.exists(faces_metadata_path):
-            existing_faces = load_jsonl(faces_metadata_path)
-            existing_faces.extend(faces_metadata)
-            save_jsonl(existing_faces, faces_metadata_path)
-        else:
-            save_jsonl(faces_metadata, faces_metadata_path)
-
-        metadata_path = get_metadata_path(partner)
-        metadata = load_jsonl(metadata_path)
-        for entry in metadata:
-            if entry["id"] == photo_id:
-                entry["faceCount"] = len(faces)
-                break
-        save_jsonl(metadata, metadata_path)
-
-        return global_vector_id  # ✅ return updated
+        return global_vector_id,faces_metadata # ✅ return updated
 
     except Exception as e:
         log_error(
@@ -311,3 +307,13 @@ def process_faces_folder(partner: str):
         "skipped": skipped_count,
         "total": len(photo_files)
     }
+
+def detect_and_embed_faces_from_array(
+    image: np.ndarray,
+    partner: str,
+    photo_id: str,
+    global_vector_id: int
+):
+    photo_path = f"memory/{photo_id}"
+
+    return detect_and_embed_faces_for_photo(photo_path, partner, photo_id, global_vector_id, override_image=image)
