@@ -25,3 +25,5 @@ venv/
 __pycache__/
 *.pyc
 *.pyo
+Miniconda*.sh
+*.sh  # Optional: exclude all .sh files if they’re not code
