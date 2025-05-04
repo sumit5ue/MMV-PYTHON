@@ -41,7 +41,8 @@ class Photo(BaseModel):
     sharedWith: List[str] = []
     rosterId: Optional[str] = None
     caption: Optional[str] = None
-    isVideo: Optional[bool] = False
+    is_video: Optional[bool] = False
+    is_clip_created: Optional[bool] = False
     saliency: Optional[SaliencyBox] = None
     aestheticScore: Optional[float] = None
     weightedScore: Optional[float] = None

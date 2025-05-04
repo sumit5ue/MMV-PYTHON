@@ -177,3 +177,5 @@ If you face any issues, remember to always:
 - Restart terminal if needed after setting up Miniforge.
 
 Ready to 🚀!
+
+# psql -U postgres -d vector_db

@@ -12,6 +12,9 @@ from utils.error_utils import log_error
 from insightface.app import FaceAnalysis
 from insightface.model_zoo import get_model
 from db.sqlite_faces import save_faces_to_db
+import json
+
+from uuid import UUID
 
 
 # Step 1: Load face detection + embeddings (buffalo_l)
@@ -71,8 +74,7 @@ def classify_pose(yaw, pitch, roll):
     # If none of the above, call it angled
     return "angled"
 
-def detect_and_embed_faces_for_photo(photo_path: str, partner: str, photo_id: str, global_vector_id: int, override_image: np.ndarray = None):
-# def detect_and_embed_faces_for_photo(photo_path: str, partner: str, photo_id: str, global_vector_id: int):
+def detect_and_embed_faces_for_photo(photo_path: str, partner: str, photo_id: str, override_image: np.ndarray = None):
 
     try:
         # image = load_image_with_exif_rotation(photo_path)
@@ -84,8 +86,8 @@ def detect_and_embed_faces_for_photo(photo_path: str, partner: str, photo_id: st
             raise Exception(f"Failed to load image {photo_path}")
 
         faces = face_app.get(image)
-        faces_dir = get_faces_dir(partner)
-        os.makedirs(faces_dir, exist_ok=True)
+        # faces_dir = get_faces_dir(partner)
+        # os.makedirs(faces_dir, exist_ok=True)
 
         face_embeddings = []
         faces_metadata = []
@@ -107,7 +109,7 @@ def detect_and_embed_faces_for_photo(photo_path: str, partner: str, photo_id: st
                 #     print(f"⚠️ Empty crop for face {i}")
                 #     continue
 
-                face_id = str(uuid.uuid4())
+                # face_id = str(uuid.uuid4())
                 # crop_path = os.path.join(faces_dir, f"{photo_id}_{i}.jpg")
                 # cv2.imwrite(crop_path, cv2.cvtColor(crop_img, cv2.COLOR_RGB2BGR))
 
@@ -121,23 +123,23 @@ def detect_and_embed_faces_for_photo(photo_path: str, partner: str, photo_id: st
                 face_embeddings.append(embedding)
 
                 faces_metadata.append({
-                    "faceId": face_id,
+                    # "faceId": face_id,
                     "photoId": photo_id,
                     "bbox": [int(x1), int(y1), int(x2), int(y2)],
                     # "cropPath": crop_path,
                     # "sourceImagePath": photo_path,
                     "gender": int(face.gender),
                     "age": int(face.age),
-                    "detScore": float(face.det_score),
+                    "det_score": float(face.det_score),
                     "yaw": yaw,
                     "pitch": pitch,
                     "roll": roll,
                     "pose": pose,
-                    "vectorId": global_vector_id,  # ✅ GLOBAL
-                    "embedding":embedding
+                    # "vectorId": global_vector_id,  # ✅ GLOBAL
+                    "embedding": [float(x) for x in embedding.tolist()]  # ✅ convert each to native float
                 })
 
-                global_vector_id += 1  # ✅ Increment after each face
+                # global_vector_id += 1  # ✅ Increment after each face
 
             except Exception as e:
                 print(f"Error during cropping for face {i}: {str(e)}")
@@ -169,7 +171,7 @@ def detect_and_embed_faces_for_photo(photo_path: str, partner: str, photo_id: st
         #         break
         # # save_jsonl(metadata, metadata_path)
 
-        return global_vector_id,faces_metadata # ✅ return updated
+        return faces_metadata # ✅ return updated
 
     except Exception as e:
         log_error(
@@ -312,8 +314,7 @@ def detect_and_embed_faces_from_array(
     image: np.ndarray,
     partner: str,
     photo_id: str,
-    global_vector_id: int
 ):
     photo_path = f"memory/{photo_id}"
 
-    return detect_and_embed_faces_for_photo(photo_path, partner, photo_id, global_vector_id, override_image=image)
+    return detect_and_embed_faces_for_photo(photo_path, partner, photo_id, override_image=image)

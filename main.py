@@ -12,8 +12,12 @@ from fastapi import HTTPException
 from pathlib import Path
 from schemas.processing import PartnerRequest, PartnerModelRequest, ClusterRequest
 from fastapi.responses import FileResponse
-from routes.photos import router as photos_router
-from routes.faces_clusters import router as faces_cluster_router
+# from routes.photos import router as photos_router
+# from routes.faces_clusters import router as faces_cluster_router
+from routes.photo_api import router as photo_router
+from routes.cluster_faces import router as cluster_faces_router
+from routes.cluster_photo import router as cluster_photo_router
+
 
 
 app = FastAPI()
@@ -24,8 +28,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app.include_router(photos_router)
-app.include_router(faces_cluster_router)
+# app.include_router(photos_router)
+# app.include_router(faces_cluster_router)
+app.include_router(photo_router)
+app.include_router(cluster_faces_router)
+app.include_router(cluster_photo_router)
 
 BASE_DIR = "/Users/sumit/Documents/ai_analysis"
 
@@ -42,12 +49,12 @@ async def serve_images(partner: str, filename: str):
         raise HTTPException(status_code=404, detail="File not found")
     return FileResponse(file_path)
 
-@app.get("/{partner}/faces_rep/{filename}")
+@app.get("/{partner}/face_reps/{filename}")
 async def serve_faces_rep(partner: str, filename: str):
     # Validate partner to prevent path traversal
     if not partner or not all(c.isalnum() or c in '-_' for c in partner):
         raise HTTPException(status_code=400, detail="Invalid partner identifier")
-    faces_rep_dir = Path(BASE_DIR) / partner / "faces_rep"
+    faces_rep_dir = Path(BASE_DIR) / partner / "face_reps"
     file_path = faces_rep_dir / filename
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
