@@ -21,3 +21,7 @@ Miniconda3-latest-MacOSX-arm64
 # Ignore environment directories
 env/
 venv/
+# Ignore Python bytecode files
+__pycache__/
+*.pyc
+*.pyo
