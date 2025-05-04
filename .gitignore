@@ -15,3 +15,9 @@ temp_*
 *.coveragerc
 *.log
 venv311/
+# Ignore Miniconda installer
+Miniconda3-latest-MacOSX-arm64
+
+# Ignore environment directories
+env/
+venv/
