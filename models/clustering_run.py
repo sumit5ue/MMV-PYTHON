@@ -5,6 +5,7 @@ from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from db.base import Base
 import uuid
+from sqlalchemy.dialects.postgresql import ARRAY  # ✅ correct import
 
 
 class ClusteringRun(Base):

@@ -265,7 +265,7 @@ async def clip_photos_from_db(partner: str, batch_size: int):
         ).all()
 
         if not photos_to_process:
-            print(f"No photos to process for partner {partner}")
+            print(f"No photos to process for {partner}")
             return {"message": "No photos to process"}
 
         photo_ids = [photo.photo_id for photo in photos_to_process]
