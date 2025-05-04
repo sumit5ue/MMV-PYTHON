@@ -11,3 +11,7 @@ build/
 *.faiss
 temp_*
 .DS_Store" > .gitignore
+.pytest_cache/
+*.coveragerc
+*.log
+venv311/
