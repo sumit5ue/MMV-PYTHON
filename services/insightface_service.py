@@ -109,21 +109,23 @@ def detect_and_embed_faces_for_photo(photo_path: str, partner: str, photo_id: st
                 #     print(f"⚠️ Empty crop for face {i}")
                 #     continue
 
-                # face_id = str(uuid.uuid4())
-                # crop_path = os.path.join(faces_dir, f"{photo_id}_{i}.jpg")
+                face_id = str(uuid.uuid4())
+                # crop_path = os.path.join(faces_dir, f"{face_id}.jpg")
                 # cv2.imwrite(crop_path, cv2.cvtColor(crop_img, cv2.COLOR_RGB2BGR))
 
                 embedding = face.normed_embedding
                 if embedding is None or len(embedding) == 0:
                     print(f"⚠️ No embedding for face {i}")
                     continue
+                if np.linalg.norm(embedding) != 1:
+                    embedding = embedding / np.linalg.norm(embedding)
 
-                embedding = embedding / np.linalg.norm(embedding)
+                # embedding = embedding / np.linalg.norm(embedding)
 
                 face_embeddings.append(embedding)
 
                 faces_metadata.append({
-                    # "faceId": face_id,
+                    "faceId": face_id,
                     "photoId": photo_id,
                     "bbox": [int(x1), int(y1), int(x2), int(y2)],
                     # "cropPath": crop_path,

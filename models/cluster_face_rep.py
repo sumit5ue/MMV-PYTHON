@@ -10,10 +10,10 @@ class ClusterFaceRep(Base):
     __tablename__ = "cluster_rep_face"
 
     cluster_id = Column(UUID(as_uuid=True), primary_key=True)
-    run_id = Column(UUID(as_uuid=True), ForeignKey("clustering_runs.run_id", ondelete="CASCADE"), nullable=False)
+    run_id = Column(String, ForeignKey("clustering_runs.run_id", ondelete="CASCADE"), nullable=False,default=uuid.uuid4)
     cluster_label = Column(String, nullable=True, index=True)
     partner = Column(String, nullable=True, index=True)
-    rep_face_id = Column(UUID(as_uuid=True), ForeignKey("faces.face_id", ondelete="SET NULL"), nullable=True)
+    rep_face_id = Column(String, ForeignKey("faces.face_id", ondelete="SET NULL"), nullable=True)
     centroid = Column(ARRAY(Float), nullable=True)
     data = Column(JSONB, nullable=True, default=dict)
     aws_face_id=Column(String, nullable=True)

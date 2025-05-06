@@ -4,6 +4,7 @@ from uuid import UUID
 from datetime import datetime
 
 class ClusterPhotoRepBase(BaseModel):
+    cluster_id: UUID
     run_id: UUID
     cluster_label: Optional[str] = None
     partner: Optional[str] = None

@@ -6,8 +6,10 @@ from schemas.photo import PhotoCreate, PhotoSchema, PhotoUpdate,PhotoDownloadReq
 import uuid
 from typing import List, Optional, Dict, Any
 from services.photo_processing_service import process_photos_async
+from services.facial_rekognition_service import process_faces_for_partner
 from pydantic import BaseModel
-from services.clip_service import clip_photos_from_db
+from services.clip_service import clip_photos_from_db,write_clip_cluster_to_mongo
+from services.facial_rekognition_service import process_faces_for_partner
 
 router = APIRouter()
 
@@ -96,9 +98,29 @@ async def download_and_process_faces_endpoint(
 @router.post("/photos/embedding/clip")
 async def clip_embed_photos_not_clipped(
     body: ClipEmbedRequest,
-    background_tasks: BackgroundTasks
+    background_tasks: BackgroundTasks   
 ):
     return await clip_photos_from_db(
         partner=body.partner,
         batch_size=body.batch_size,
+    )
+
+
+@router.post("/photos/aws-rekognition/search-faces")
+async def aws_facial_rekognition(
+    body: ClipEmbedRequest,
+    background_tasks: BackgroundTasks
+):
+    return await process_faces_for_partner(
+        partner=body.partner,
+    )
+
+
+@router.post("/photos/transfer-to-mongodb")
+async def aws_facial_rekognition(
+    body: ClipEmbedRequest,
+    background_tasks: BackgroundTasks
+):
+    return await write_clip_cluster_to_mongo(
+        partner=body.partner,
     )

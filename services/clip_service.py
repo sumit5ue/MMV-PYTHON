@@ -13,15 +13,69 @@ from sqlalchemy import func
 from sqlalchemy.exc import SQLAlchemyError
 import os
 from uuid import UUID
-from models.photo import Photo
+from models.photo import Photo,ClusterClip
 from models.clip import Clip
 from db.session import SessionLocal
 import asyncio
 import aiohttp
+from pymongo import MongoClient,UpdateOne
+from utils.convert_uuid_to_string import convert_uuid_to_string
+from utils.get_latest_cluster_run import get_latest_cluster_run
 
 
 device = "mps" if torch.backends.mps.is_available() else "cpu"
 clip_model, preprocess = clip.load("ViT-B/32", device=device)
+
+
+MONGO_URI="mongodb+srv://sumit5ue:SumitStar2024@cluster0.bpw9q.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+DATABASE_NAME = "test"
+PHOTO_CHAPTER_COLLECTION = "photo_chapter"
+# Initialize MongoDB client
+client = MongoClient(MONGO_URI)
+mongoDb = client[DATABASE_NAME]
+photo_chapter_collection = mongoDb[PHOTO_CHAPTER_COLLECTION]
+
+
+async   def write_clip_cluster_to_mongo(partner):
+    # Open a new session to query the clip_cluster table
+    session = SessionLocal()
+    latest_run = get_latest_cluster_run(session, partner)
+    # Query the ClusterClip table for the given partner_id
+    clip_clusters = session.query(ClusterClip).filter(ClusterClip.partner == partner,ClusterClip.run_id == latest_run.run_id).all()
+
+    # Prepare the records for MongoDB
+    operations = []
+    for cluster in clip_clusters:
+        record = {
+            "run_id": convert_uuid_to_string(cluster.run_id),
+            "photo_id": convert_uuid_to_string(cluster.photo_id),
+            "label": cluster.label,
+            "confidence": cluster.confidence,
+            "owner": {
+                "type": "Partner",  # You can change the type if needed
+                "id": partner
+            }
+        }
+        # records.append(record)
+        # Create an upsert operation
+        operation = UpdateOne(
+            {"photo_id": record["photo_id"]},  # Query filter based on photo_id
+            {"$set": record},  # Set the fields to update
+            upsert=True  # Upsert if the photo_id doesn't exist
+        )
+        operations.append(operation)
+
+    # Insert records into MongoDB
+    if operations:
+        result = photo_chapter_collection.bulk_write(operations)
+        print(f"Upserted {len(result.upserted_ids)} records into MongoDB.")
+    else:
+        print("No records to upsert.")
+
+    # Close the session
+    session.close()
+
+
 
 def embed_clip_for_photo(photo_path: str, partner: str, photo_id: str):
     try:

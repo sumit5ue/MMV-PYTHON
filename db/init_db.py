@@ -9,11 +9,11 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from db.session import engine
 from db.base import Base
 
-from models.photo import Photo,Face,ClusterPhotoRep,ClusterPhotoRepPhotoMapping  # ⬅️ This is crucial
+from models.photo import Photo,Face,ClusterPhotoRep,ClusterPhotoRepPhotoMapping,ClusteringRun,ClusterFaceRep,ClusterFaceRepFaceMapping  # ⬅️ This is crucial
 # from models.face import Face
-from models.clustering_run import ClusteringRun
-from models.cluster_face_rep import ClusterFaceRep
-from models.cluster_face_rep_face_mapping import ClusterFaceRepFaceMapping
+# from models.clustering_run import ClusteringRun
+# from models.cluster_face_rep import ClusterFaceRep
+# from models.cluster_face_rep_face_mapping import ClusterFaceRepFaceMapping
 # from models.cluster_photo_rep_photo_mapping import ClusterPhotoRepPhotoMapping
 from models.clip import Clip
 # from models.cluster_face_rep import FaceCluster

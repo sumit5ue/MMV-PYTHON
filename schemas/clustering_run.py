@@ -17,7 +17,7 @@ class ClusteringRunUpdate(ClusteringRunBase):
     pass
 
 class ClusteringRun(ClusteringRunBase):
-    run_id: UUID
+    run_id: UUID4
 
     class Config:
         orm_mode = True

@@ -16,6 +16,7 @@ class PhotoBase(BaseModel):
     weighted_score: Optional[float] = None
     photo_creation_date: Optional[datetime] = None
     data: Optional[Dict[str, Any]] = None
+    face_count:Optional[int] = None
     is_downloaded: Optional[bool] = False
     is_profile: bool = False
     created_at: Optional[datetime] = None
@@ -50,4 +51,4 @@ class PhotoDownloadRequest(BaseModel):
 
 class ClipEmbedRequest(BaseModel):
     partner: str   
-    batch_size: int = 4
+    batch_size: int = 100

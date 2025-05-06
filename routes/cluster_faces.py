@@ -11,7 +11,7 @@ router = APIRouter()
 class PartnerRequest(BaseModel):
     partner: str
 
-@router.post("/cluster_faces/")
+@router.post("/cluster/faces/")
 def process_faces(request: PartnerRequest, db: Session = Depends(get_db)):  # Dependency injected here
     partner = request.partner
     try:
@@ -22,7 +22,7 @@ def process_faces(request: PartnerRequest, db: Session = Depends(get_db)):  # De
         raise HTTPException(status_code=404, detail=str(e))
 
 
-@router.get("/rep-faces/{partner}/")
+@router.get("/cluster/faces/reps/{partner}/")
 async def get_rep_faces_route(partner: str, db: Session = Depends(get_db)):
     try:
         # Call the service to get the unique rep faces

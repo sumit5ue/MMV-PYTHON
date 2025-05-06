@@ -4,8 +4,10 @@ from uuid import UUID
 from datetime import datetime
 
 class ClusterFaceRepFaceMappingBase(BaseModel):
-    face_id: UUID
-    cluster_id: UUID
+    face_id: str
+    cluster_id:UUID
+    run_id: UUID
+    label: str
     partner: Optional[str] = None
     confidence: Optional[float] = None
     aws_face_id: Optional[str] = None

@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import select
-from models.clustering_run import ClusteringRun
+from models.photo import ClusteringRun
 
 def get_latest_cluster_run(session: Session, partner: str) -> ClusteringRun:
     """

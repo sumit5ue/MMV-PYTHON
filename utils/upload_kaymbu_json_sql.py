@@ -39,37 +39,39 @@ def transform_to_photo_model(json_data: dict, partner: str) -> tuple[List[PhotoC
         shared_with = []
         invalid_shared_with = []
 
-        for kid in photo_data.get('kids', []):
-            kid_id = kid['id'] if isinstance(kid, dict) and 'id' in kid else kid
-            if kid_id and isinstance(kid_id, str) and kid_id.strip():
-                shared_with.append(kid_id)
-            else:
-                invalid_shared_with.append(kid_id)
+        # for kid in photo_data.get('students', []):
+        #     kid_id = kid['id'] if isinstance(kid, dict) and 'id' in kid else kid
+        #     if kid_id and isinstance(kid_id, str) and kid_id.strip():
+        #         shared_with.append(kid_id)
+        #     else:
+        #         invalid_shared_with.append(kid_id)
 
-        app_roster_id = photo_data.get('rosterId')
-        if app_roster_id and isinstance(app_roster_id, str) and app_roster_id.strip():
-            shared_with.append(app_roster_id)
-        elif app_roster_id:
-            invalid_shared_with.append(app_roster_id)
+        # app_roster_id = photo_data.get('rosterId')
+        # if app_roster_id and isinstance(app_roster_id, str) and app_roster_id.strip():
+        #     shared_with.append(app_roster_id)
+        # elif app_roster_id:
+        #     invalid_shared_with.append(app_roster_id)
 
-        if invalid_shared_with:
-            print(f"Invalid shared_with IDs for photo {photo_data['id']}: {invalid_shared_with}")
-            errors.append({"photoId": photo_data['id'], "invalid_ids": invalid_shared_with})
+        # if invalid_shared_with:
+        #     print(f"Invalid shared_with IDs for photo {photo_data['id']}: {invalid_shared_with}")
+        #     errors.append({"photoId": photo_data['id'], "invalid_ids": invalid_shared_with})
 
         try:
             photo = PhotoCreate(
-                photo_id=photo_data['id'],
+                photo_id=photo_data['_id'],
                 partner=partner,
-                url=(
-                    photo_data.get('video_file_url')
-                    if photo_data.get('is_video')
-                    else photo_data.get('main_url').replace('/main/', '/original/')
-                ),
-                shared_with=shared_with,
-                app_roster_id=photo_data.get('rosterId'),
-                caption=photo_data.get('caption'),
-                is_video=photo_data.get('is_video'),
-                photo_creation_date=photo_data.get("created_at"),
+                # url=(
+                #     photo_data.get('video_file_url')
+                #     if photo_data.get('is_video')
+                #     else photo_data.get('pictureThumb').replace('/_thumb/', '//')
+                # ),
+                # shared_with=shared_with,
+                # app_roster_id=photo_data.get('rosterId'),
+                url = f"https://d2k9f6tk478nyp.cloudfront.net{photo_data.get('pictureThumb').replace('_thumb', '')}",
+
+                caption=photo_data.get('annotation'),
+                is_video=photo_data.get('video'),
+                photo_creation_date=photo_data.get("dateCaptured"),
             )
             photos.append(photo)
         except ValidationError as e:
@@ -142,6 +144,7 @@ def main(folder_path: str, partner: str):
 
     deduped_photos = list(photo_dict.values())
     print("deduped_photos: unique count is ---", len(deduped_photos))
+    print("photo is ",deduped_photos[0])
 
     # Insert to DB
     insert_photos_to_db(deduped_photos, batch_size=1000)
@@ -151,6 +154,6 @@ def main(folder_path: str, partner: str):
 
 
 if __name__ == "__main__":
-    FOLDER_PATH = "/Users/sumit/Documents/ai_analysis/67c5079afb7ebb148255e275/app_files/photos"
-    PARTNER = "67c5079afb7ebb148255e275"
+    FOLDER_PATH = "/Users/sumit/Documents/ai_analysis/67ec2a60d4d64df971004210/app_files/photos"
+    PARTNER = "67ec2a60d4d64df971004210"
     main(FOLDER_PATH, PARTNER)

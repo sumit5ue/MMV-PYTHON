@@ -9,7 +9,7 @@ class ClusterFaceBase(BaseModel):
     run_id: UUID
     cluster_label:str
     partner: Optional[str] = None
-    rep_face_id: Optional[UUID] = None
+    rep_face_id: Optional[str] = None
     centroid: Optional[list[float]] = None
     data: Optional[Dict[str, Any]] = {}
     aws_face_id: Optional[str] = None

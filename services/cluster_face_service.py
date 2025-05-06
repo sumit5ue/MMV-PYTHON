@@ -9,19 +9,22 @@ from sqlalchemy import Column, String, Integer, Float, DateTime, UUID, ForeignKe
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.sql import func
 import uuid
-
+import traceback
 from collections import defaultdict
 
 from sklearn.cluster import HDBSCAN
 import hdbscan
-from models.cluster_face_rep import  ClusterFaceRep
-from models.clustering_run import ClusteringRun
-from models.cluster_face_rep_face_mapping import ClusterFaceRepFaceMapping
+# from models.cluster_face_rep import  ClusterFaceRep
+from models.photo import ClusteringRun, ClusterFaceRepFaceMapping
 
-from models.photo import Face
-from models.cluster_face_rep import ClusterFaceRep
+from models.photo import Face,ClusterFaceRep
+# from models.cluster_face_rep import ClusterFaceRep
 from utils.get_latest_cluster_run import get_latest_cluster_run
 
+# Constant for minimum detection score
+MIN_DET_SCORE = 0.6
+# Constant for minimum bounding box dimensions
+MIN_BBOX_DIMENSION = 80
 
 
 def get_rep_faces(session: Session, partner: str):
@@ -34,7 +37,7 @@ def get_rep_faces(session: Session, partner: str):
 
         # Step 2: Query the ClusterFaceRep table for the representative faces for the latest run
         rep_faces = session.execute(
-            select(ClusterFaceRep.run_id, ClusterFaceRep.cluster_id, ClusterFaceRep.rep_face_id)
+            select(ClusterFaceRep.run_id, ClusterFaceRep.cluster_id, ClusterFaceRep.rep_face_id,ClusterFaceRep.cluster_label)
             .filter(ClusterFaceRep.run_id == latest_run.run_id)
         ).all()
 
@@ -42,32 +45,89 @@ def get_rep_faces(session: Session, partner: str):
             raise ValueError(f"No representative faces found for the latest run for partner: {partner}")
 
         # Format the result into a list of dictionaries
-        return [{"run_id": row.run_id, "cluster_id": row.cluster_id, "rep_face_id": row.rep_face_id} for row in rep_faces]
+        return [{"run_id": row.run_id, "cluster_id": row.cluster_id, "rep_face_id": row.rep_face_id,"label":row.cluster_label} for row in rep_faces]
     
     except Exception as e:
         raise ValueError(f"Error fetching representative faces for partner {partner}: {str(e)}")
 
 
-def get_run_cluster_faces(session, run_id,label):
+def get_run_cluster_faces(session, run_id, label):
     try:
-        # Step 2: Query the ClusterFaceRep table for the representative faces for the latest run
+        # Step 1: Query the ClusterFaceRepFaceMapping table joined with Face table
         faces = session.execute(
-            select(ClusterFaceRepFaceMapping.face_id, ClusterFaceRepFaceMapping.label,ClusterFaceRepFaceMapping.aws_face_id,ClusterFaceRepFaceMapping.confidence,ClusterFaceRepFaceMapping.run_id)
-            .filter(ClusterFaceRepFaceMapping.label == label,ClusterFaceRepFaceMapping.run_id == ClusterFaceRepFaceMapping.run_id)
+            select(
+                ClusterFaceRepFaceMapping.face_id,
+                ClusterFaceRepFaceMapping.label,
+                ClusterFaceRepFaceMapping.aws_face_id,
+                ClusterFaceRepFaceMapping.confidence,
+                ClusterFaceRepFaceMapping.run_id,
+                Face.photo_id,  # Include photo_id from Face table
+                Face.bbox_width,
+                Face.bbox_height,
+                Face.bbox_x,
+                Face.bbox_y
+            )
+            .join(Face, ClusterFaceRepFaceMapping.face_id == Face.face_id)  # Join on face_id
+            .filter(
+                ClusterFaceRepFaceMapping.label == label,
+                ClusterFaceRepFaceMapping.run_id == run_id  # Corrected filter to use run_id parameter
+            )
         ).all()
+
         if not faces:
-            raise ValueError(f"No  faces found for the latest run: {run_id} and label {label}")
+            raise ValueError(f"No faces found for run_id: {run_id} and label: {label}")
 
-        # Format the result into a list of dictionaries
-        return [{"run_id": row.run_id, "label": row.label, "photo_id": row.face_id,"confidence":row.confidence} for row in faces]
-    
+        # Step 2: Format the result into a list of dictionaries
+        return [
+            {
+                "run_id": row.run_id,
+                "label": row.label,
+                "face_id": row.face_id,
+                "photo_id": row.photo_id,
+                "confidence": row.confidence,
+                "aws_face_id": row.aws_face_id,
+                "bbox_x":row.bbox_x,
+                "bbox_y":row.bbox_y,
+                "bbox_width":row.bbox_width,
+                "bbox_height":row.bbox_height,
+                
+            }
+            for row in faces
+        ]
+
     except Exception as e:
-        print(f"Error {e}")
+        print(f"Error: {e}")
         traceback.print_exc()
-
+        raise  # Re-raise the exception for upstream handling
+    
 def get_faces_for_partner(session: Session, partner: str):
-    # Query all faces for the partner
-    faces = session.execute(select(Face).filter(Face.partner == partner)).scalars().all()
+    """
+    Retrieve faces for a given partner, filtering by:
+    - det_score >= 0.6
+    - bbox width and height >= 40 pixels
+    - Non-null embeddings (for HDBSCAN compatibility)
+    
+    Args:
+        session (Session): SQLAlchemy session
+        partner (str): Partner identifier
+    
+    Returns:
+        list: List of Face objects with valid embeddings
+    """
+    # Query faces with filters
+    faces = session.execute(
+        select(Face)
+        .filter(
+            Face.partner == partner,
+            Face.det_score >= MIN_DET_SCORE,
+            # Ensure bbox width (width) >= 40
+            Face.bbox_width  >= MIN_BBOX_DIMENSION,
+            # Ensure bbox height (height) >= 40
+             Face.bbox_height >= MIN_BBOX_DIMENSION,
+            Face.embedding.isnot(None)  # Ensure embedding is not null for HDBSCAN
+        )
+    ).scalars().all()
+
     return faces
 
 def process_faces_with_hdbscan(faces):
@@ -78,7 +138,7 @@ def process_faces_with_hdbscan(faces):
     # embeddings = np.array([face.embedding for face in faces_subset])
     embeddings = np.array([face.embedding for face in faces])
     norm = np.linalg.norm(embeddings, axis=1, keepdims=True)
-    embeddings = embeddings / np.clip(norm, 1e-10, None)
+    # embeddings = embeddings / np.clip(norm, 1e-10, None)
         
     # Log the number of faces and the shape of the embeddings array
     # print(f"Number of faces: {len(faces_subset)}")
@@ -88,20 +148,37 @@ def process_faces_with_hdbscan(faces):
     print(f"Embeddings shape: {embeddings.shape}")
 
     # Run HDBSCAN clustering
+    # clusterer = hdbscan.HDBSCAN(
+    #     # min_cluster_size=min_cluster_size,
+    #     # min_samples=5, for insightface
+    #     min_samples=1,
+    #     metric="euclidean",
+    #     cluster_selection_method='eom',
+    #     prediction_data=True,
+    #     # cluster_selection_epsilon=0,
+    #     min_cluster_size=2,
+    #     cluster_selection_epsilon=0.0 # for insightface
+    # )
     clusterer = hdbscan.HDBSCAN(
-        # min_cluster_size=min_cluster_size,
-        # min_samples=5, for insightface
-        min_samples=5,
-        metric="euclidean",
-        cluster_selection_method='eom',
-        prediction_data=True,
-        # cluster_selection_epsilon=0,
+        min_samples=1,
         min_cluster_size=2,
-        cluster_selection_epsilon=0.5 # for insightface
+        metric="euclidean",
+        cluster_selection_method='leaf',
+        prediction_data=True,
+        cluster_selection_epsilon=0
     )
     # Fit and predict cluster labels
     labels = clusterer.fit_predict(embeddings)
+    label_to_photos = defaultdict(list)
+    for photo, label in zip(faces, labels):
+        label_to_photos[label].append(photo.photo_id)
 
+        # Print the grouped results
+    print("\nCluster assignments (label: [photo_id]):")
+    for label in sorted(label_to_photos.keys()):  # Sort for consistent output
+        photo_ids = label_to_photos[label]
+        print(f"Label {label}: {photo_ids} (Count: {len(photo_ids)})")
+    
     # Get the cluster labels
     # labels = clustering.labels_
     return labels, clusterer
@@ -114,10 +191,10 @@ def crop_and_save_face(face, partner: str):
     image = Image.open(image_path)
     
     # Get the bounding box coordinates for cropping
-    left = face.bbox.get("x")  # Get the left position of the bounding box
-    top = face.bbox.get("y")   # Get the top position of the bounding box (added consistency with face.box)
-    right = left + face.bbox.get("width")  # Calculate the right position by adding width from the face.box
-    bottom = top + face.bbox.get("height")  # Calculate the bottom position by adding height from the face.box
+    left = face.bbox_x  # Get the left position of the bounding box
+    top = face.bbox_y   # Get the top position of the bounding box (added consistency with face.box)
+    right = left + face.bbox_width  # Calculate the right position by adding width from the face.box
+    bottom = top + face.bbox_height  # Calculate the bottom position by adding height from the face.box
     # right = left + face.bb_width
     # bottom = top + face.bb_height
     
@@ -200,7 +277,7 @@ def assign_representative_face_and_crop(faces, labels,partner):
 
 def save_cluster_rep_faces(db: Session, faces, labels, clustering, partner, clustering_run: ClusteringRun):
     cluster_face_reps = []  # List to store ClusterFaceRep instances for returning later
-    
+    cluster_label_to_cluster_id = {} 
     try:
         # Step 1: Identify representative faces (and crop them)
         rep_faces = assign_representative_face_and_crop(faces, labels, partner)
@@ -221,7 +298,7 @@ def save_cluster_rep_faces(db: Session, faces, labels, clustering, partner, clus
                 aws_face_id=None,  # Set other face details as needed
                 aws_external_image_id=None,
             )
-            
+            cluster_label_to_cluster_id[cluster_label] = cluster_id
             cluster_face_reps.append(cluster_face)  # Add to the list of cluster face reps
             db.add(cluster_face)  # Add to the session for commit
 
@@ -229,7 +306,7 @@ def save_cluster_rep_faces(db: Session, faces, labels, clustering, partner, clus
         db.commit()
 
         # Return the list of created ClusterFaceRep instances
-        return cluster_face_reps
+        return cluster_label_to_cluster_id
 
     except Exception as e:
         db.rollback()  # Rollback the transaction in case of error
@@ -269,25 +346,31 @@ def cluster_faces_for_partner(db: Session, partner: str):
 
         # Step 2: Process faces with HDBSCAN
         labels, clustering = process_faces_with_hdbscan(faces)
+        
 
         # Step 3: Create ClusteringRun (this should be within try block)
         clustering_run = create_clustering_run(db, partner)
 
         # Step 4: Save the cluster faces in the ClusterFace table
-        save_cluster_rep_faces(db, faces, labels, clustering, partner, clustering_run)
+        cluster_label_to_cluster_id = save_cluster_rep_faces(db, faces, labels, clustering, partner, clustering_run)
 
         # Step 5: Save the cluster-face mappings
-        save_cluster_face_mappings(db, faces, labels,clustering,clustering_run, partner)
+        save_cluster_face_mappings(db, faces, labels,clustering,clustering_run, partner,cluster_label_to_cluster_id)
 
         return {"message": f"Clustering for partner {partner} completed and saved."}
 
-    except SQLAlchemyError as e:
-        db.rollback()
-        print(f"Error: {str(e)}")
-        raise Exception(f"Error while saving clustering data for {partner}. Please check the logs.")
-    except ValueError as e:
-        print(f"Error: {str(e)}")
-        raise e  # Re-raise to handle error at a higher level, if necessary
+    # except SQLAlchemyError as e:
+    #     db.rollback()
+    #     print(f"Error: {str(e)}")
+    #     raise Exception(f"Error while saving clustering data for {partner}. Please check the logs.")
+    # except ValueError as e:
+    #     print(f"Error: {str(e)}")
+    #     raise e  # Re-raise to handle error at a higher level, if necessary
+    except Exception as e:
+        db.rollback()  # Rollback in case of error
+        print(f"Error in cluster faces: {str(e)}")
+        traceback.print_exc()
+        return {"message": f"Error creating cluster : {str(e)}"}
 
 
 
@@ -353,7 +436,7 @@ def get_faces_for_rep_id(db: Session, rep_id: str):
     return response_data
 
 
-def save_cluster_face_mappings(db: Session, faces, labels, clustering, clustering_run, partner: str):
+def save_cluster_face_mappings(db: Session, faces, labels, clustering, clustering_run, partner: str,cluster_label_to_cluster_id):
     print("in func", len(faces))
     try:
         # Loop through each face and assign a cluster label based on the clustering
@@ -365,6 +448,13 @@ def save_cluster_face_mappings(db: Session, faces, labels, clustering, clusterin
             confidence = clustering.probabilities_[i] if hasattr(clustering, 'probabilities_') and len(clustering.probabilities_) > i else None
             confidence = float(confidence) if confidence is not None else None  # Convert to native Python float if not None
 
+            # Get the cluster_id from the map
+            cluster_id = cluster_label_to_cluster_id.get(cluster_label)
+
+            if cluster_id is None:
+                print(f"Cluster ID not found for label {cluster_label}")
+                continue  # If no cluster ID found for this label, skip
+
 
             try:
                 # Create a ClusterFaceRepFaceMapping for each face
@@ -374,6 +464,7 @@ def save_cluster_face_mappings(db: Session, faces, labels, clustering, clusterin
                     run_id=clustering_run.run_id,
                     partner=partner,
                     confidence=confidence,
+                    cluster_id=cluster_id,
                     # aws_face_id=face.aws_face_id,  # Uncomment if needed
                     # data=face.data  # Uncomment if needed
                 )

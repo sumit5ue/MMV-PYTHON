@@ -8,14 +8,25 @@ class FaceBase(BaseModel):
     face_id: UUID  # UUID of the face
     photo_id: UUID  # Foreign key to the `photos` table
     partner: Optional[str] = None  # Partner associated with the face
-    bbox: Optional[Dict[str, Any]] = {}  # Bounding box as a JSONB (a dictionary)
+    bbox_x: Optional[float] = None  # Detection score
+    bbox_y: Optional[float] = None  # Detection score
+    bbox_width: Optional[float] = None  # Detection score
+    bbox_height: Optional[float] = None  # Detection score
     embedding: Optional[List[float]] = None  # Embedding as an array of floats
     det_score: Optional[float] = None  # Detection score
-    pose: Optional[Dict[str, Any]] = {}  # Pose as a JSONB (a dictionary)
-    landmarks: Optional[Dict[str, Any]] = {}  # Pose as a JSONB (a dictionary)
+    pose: Optional[Dict[str, Any]] = None  # Pose as a JSONB (a dictionary)
+    landmarks: Optional[Dict[str, Any]] = None  # Landmarks as a JSONB (a dictionary)
     member_id: Optional[str] = None  # Member ID associated with the face
     roster_id: Optional[str] = None  # Roster ID associated with the face
-    data: Optional[Dict[str, Any]] = {}  # Metadata as a JSONB (a dictionary)
+    aws_face_id=Optional[str] = None 
+    external_image_id=Optional[str] = None 
+    similarity: Optional[float] = None 
+    eye_direction: Optional[Dict[str, Any]] = None
+    is_aws_error: Optional[bool] = False
+    aws_error: Optional[Dict[str, Any]] = None
+    
+    
+    data: Optional[Dict[str, Any]] = None  # Metadata as a JSONB (a dictionary)
 
     created_at: Optional[datetime] = None  # Timestamp when the face record was created
     updated_at: Optional[datetime] = None  # Timestamp when the face record was last updated
@@ -44,3 +55,4 @@ class FaceSchema(FaceCreate):
 
     class Config:
         orm_mode = True  # To read data from SQLAlchemy model instances
+   

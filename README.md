@@ -179,3 +179,34 @@ If you face any issues, remember to always:
 Ready to 🚀!
 
 # psql -U postgres -d vector_db
+
+# download photos and run insightface
+
+# run aesthetics and saliency
+
+# transfer photos from pg to mongodb -- photo_chapter
+
+# run facial recognition
+
+# transfer faces -- photo_face
+
+# run clip
+
+# make clusters
+
+# transfer cluster -- photo_chapter
+
+# get rep chapters - photo backend
+
+# ready to start ranking
+
+DO $$
+DECLARE
+r RECORD;
+BEGIN
+-- Loop through all tables
+FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP
+-- Drop each table
+EXECUTE 'DROP TABLE IF EXISTS public.' || r.tablename || ' CASCADE';
+END LOOP;
+END $$;

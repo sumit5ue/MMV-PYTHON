@@ -40,11 +40,11 @@ async def get_rep_photos_route(partner: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
     
 
-@router.get("/cluster/photos/photos/{run_id}/{label}/")
-async def get_run_cluster_photos_route(run_id: str, label: str,db: Session = Depends(get_db)):
+@router.get("/cluster/photos/photos/{partner}")
+async def get_run_cluster_photos_route(partner: str,db: Session = Depends(get_db)):
     try:
         # Call the service to get the unique rep faces
-        unique_rep_faces = get_run_cluster_photos(db, run_id,label)
+        unique_rep_faces = get_run_cluster_photos(db,partner)
 
         if not unique_rep_faces:
             raise HTTPException(status_code=404, detail="No unique representative faces found")
