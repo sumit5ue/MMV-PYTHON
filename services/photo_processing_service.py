@@ -4,12 +4,14 @@ from io import BytesIO
 from PIL import Image, ExifTags
 import numpy as np
 from pathlib import Path
-
+import pillow_heif
 from services.insightface_service import detect_and_embed_faces_from_array
 from db.session import SessionLocal
 from models.photo import Photo,Face
 # from models.face import Face
-from utils.file_utils import get_photo_path
+from utils.file_utils import get_photo_path_for_ext
+
+pillow_heif.register_heif_opener()
 
 def apply_exif_rotation(image: Image.Image) -> Image.Image:
     try:
@@ -222,13 +224,18 @@ async def fetch_and_process(index: int, photo_id: str, url: str, session: aiohtt
 
                 # Read and process image
                 img_bytes = await resp.read()
+                
                 pil_img = Image.open(BytesIO(img_bytes))
                 rotated = apply_exif_rotation(pil_img)
                 image = np.array(rotated)
-
+                exif = pil_img.info.get("exif")
                 # Save image to local path
-                file_path = get_photo_path(partner, photo_id)
-                rotated.save(file_path)
+                file_path = get_photo_path_for_ext(partner, photo_id,rotated)
+                if exif:
+                    rotated.save(file_path, exif=exif)
+                else:
+                    rotated.save(file_path)
+                                
 
                 # Detect faces and extract embeddings
                 faces_metadata = detect_and_embed_faces_from_array(
